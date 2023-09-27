@@ -20,16 +20,16 @@ if ! [ $(id -nG "$USER" 2>/dev/null | egrep "sudo" | wc -l) -gt 0 ]; then
     exit 1
 fi
 
-# Select new GVM upgrade versions       (check below links for latest release versions)
-export GVM_LIBS_VERSION=22.7.0          # https://github.com/greenbone/gvm-libs
-export GVMD_VERSION=22.8.0              # https://github.com/greenbone/gvmd
+# Select GVM install versions           (check below links for latest release versions)
+export GVM_LIBS_VERSION=22.7.1          # https://github.com/greenbone/gvm-libs
+export GVMD_VERSION=22.9.0              # https://github.com/greenbone/gvmd
 export PG_GVM_VERSION=22.6.1            # https://github.com/greenbone/pg-gvm
-export GSA_VERSION=22.6.0               # https://github.com/greenbone/gsa
-export GSAD_VERSION=22.5.2              # https://github.com/greenbone/gsad
+export GSA_VERSION=22.7.0               # https://github.com/greenbone/gsa
+export GSAD_VERSION=22.6.0              # https://github.com/greenbone/gsad
 export OPENVAS_SMB_VERSION=22.5.3       # https://github.com/greenbone/openvas-smb
-export OPENVAS_SCANNER_VERSION=22.7.3   # https://github.com/greenbone/openvas-scanner
-export OSPD_OPENVAS_VERSION=22.5.4      # https://github.com/greenbone/ospd-openvas
-export NOTUS_VERSION=22.5.0             # https://github.com/greenbone/notus-scanner
+export OPENVAS_SCANNER_VERSION=22.7.5   # https://github.com/greenbone/openvas-scanner
+export OSPD_OPENVAS_VERSION=22.6.0      # https://github.com/greenbone/ospd-openvas
+export NOTUS_VERSION=22.6.0             # https://github.com/greenbone/notus-scanner
 
 # Set global variables and paths
 export INSTALL_PREFIX=/usr/local

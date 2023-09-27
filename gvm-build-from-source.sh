@@ -21,15 +21,15 @@ if ! [ $(id -nG "$USER" 2>/dev/null | egrep "sudo" | wc -l) -gt 0 ]; then
 fi
 
 # Select GVM install versions           (check below links for latest release versions)
-export GVM_LIBS_VERSION=22.7.0          # https://github.com/greenbone/gvm-libs
-export GVMD_VERSION=22.8.0              # https://github.com/greenbone/gvmd
+export GVM_LIBS_VERSION=22.7.1          # https://github.com/greenbone/gvm-libs
+export GVMD_VERSION=22.9.0              # https://github.com/greenbone/gvmd
 export PG_GVM_VERSION=22.6.1            # https://github.com/greenbone/pg-gvm
-export GSA_VERSION=22.6.0               # https://github.com/greenbone/gsa
-export GSAD_VERSION=22.5.2              # https://github.com/greenbone/gsad
+export GSA_VERSION=22.7.0               # https://github.com/greenbone/gsa
+export GSAD_VERSION=22.6.0              # https://github.com/greenbone/gsad
 export OPENVAS_SMB_VERSION=22.5.3       # https://github.com/greenbone/openvas-smb
-export OPENVAS_SCANNER_VERSION=22.7.3   # https://github.com/greenbone/openvas-scanner
-export OSPD_OPENVAS_VERSION=22.5.4      # https://github.com/greenbone/ospd-openvas
-export NOTUS_VERSION=22.5.0             # https://github.com/greenbone/notus-scanner
+export OPENVAS_SCANNER_VERSION=22.7.5   # https://github.com/greenbone/openvas-scanner
+export OSPD_OPENVAS_VERSION=22.6.0      # https://github.com/greenbone/ospd-openvas
+export NOTUS_VERSION=22.6.0             # https://github.com/greenbone/notus-scanner
 
 # Set global variables and paths
 export INSTALL_PREFIX=/usr/local
@@ -198,6 +198,9 @@ sudo apt-get install --no-install-recommends --assume-yes \
     build-essential curl cmake pkg-config python3 python3-pip gnupg wget sudo gnupg2 ufw htop >/dev/null
     sudo DEBIAN_FRONTEND="noninteractive" apt-get install postfix mailutils -y >/dev/null
     sudo service postfix restart >/dev/null
+    # Fix annoying "error: externally-managed-environment" message error with Python installs
+    python_version_dir=$(python3 --version 2>&1 | grep -oP '\d+\.\d+' | head -n 1)
+    sudo rm -rf /usr/lib/python${python_version_dir}/EXTERNALLY-MANAGED
     sudo pip3 install --upgrade pip >/dev/null
 
 # Import the Greenbone Community Signing key
@@ -248,6 +251,7 @@ if [[ ${OFFICIAL_POSTGRESQL} = "yes" ]]; then
     sudo apt-get -y install lsb-release >/dev/null
     sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
     sudo wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+    sudo apt-key export ACCC4CF8 | sudo gpg --dearmour -o /etc/apt/trusted.gpg.d/greenbone.gpg
 fi
 sudo apt -y update
 sudo apt-get install -y \
@@ -709,7 +713,7 @@ sudo ufw logging off
 
 echo
 echo -e "${CYAN}#############################################################################"
-echo -e " Setting up the postgres db, gvm permissions & update feed digital siganture."
+echo -e " Setting up the postgres db, gvm permissions & update feed digital signature."
 echo -e "#############################################################################${NC}"
 echo
 # Set directory permissions ############################################################
