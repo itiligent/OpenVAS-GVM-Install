@@ -625,7 +625,7 @@ ST                  = $CERT_STATE
 L                   = $CERT_LOCATION
 O                   = $CERT_ORG
 OU                  = $CERT_OU
-CN                  = $PROXY_SITE
+CN                  = *.$(echo $PROXY_SITE | cut -d. -f2-)
 
 [v3_req]
 keyUsage            = nonRepudiation, digitalSignature, keyEncipherment
@@ -634,6 +634,7 @@ subjectAltName      = @alt_names
 
 [alt_names]
 DNS.1               = $PROXY_SITE
+DNS.2               = *.$(echo $PROXY_SITE | cut -d. -f2-)
 IP.1                = $DEFAULT_IP
 EOF
 
@@ -688,7 +689,7 @@ sudo unlink /etc/nginx/sites-enabled/default
 
 # Force nginx to require tls1.2 and above
 sudo sed -i -e '/ssl_protocols/s/^/#/' /etc/nginx/nginx.conf 
-sudo sed -i "/SSL Settings/a \        ssl_protocols TLSv1.2 TLSv1.3; # Dropping SSLv3, ref: POODLE" /etc/nginx/nginx.conf
+sudo sed -i "/SSL Settings/a \        ssl_protocols TLSv1.2 TLSv1.3;" /etc/nginx/nginx.conf
 
 # Restart Nginx
 sudo systemctl restart nginx
@@ -780,7 +781,7 @@ SHOWASTEXT2='"Cert:\LocalMachine\Root"'
 printf "${GREY}+-------------------------------------------------------------------------------------------------------------
 ${CYAN}+ WINDOWS CLIENT SELF SIGNED SSL BROWSER CONFIG - SAVE THIS BEFORE CONTINUING!${GREY}
 +
-+ 1. In your home directory is a new Windows friendly version of the new certificate ${LYELLOW}$PROXY_SITE.pfx${GREY}
++ 1. In your home directory is a Windows friendly version of the new certificate ${LYELLOW}$PROXY_SITE.pfx${GREY}
 + 2. Copy this .pfx file to a location accessible by Windows.
 + 3. Import the PFX file into your Windows client with the below Powershell commands (as Administrator):
 \n"
@@ -794,7 +795,7 @@ ${CYAN}+ LINUX CLIENT SELF SIGNED SSL BROWSER CONFIG - SAVE THIS BEFORE CONTINUI
 + 2. Copy this file to a location accessible by Linux.
 + 3. Import the CRT file into your Linux client certificate store with the below command (as sudo):
 \n"
-echo -e "mkdir -p $HOME/.pki/nssdb && certutil -d $HOME/.pki/nssdb -N"
+echo -e "mkdir -p \$HOME/.pki/nssdb && certutil -d \$HOME/.pki/nssdb -N"
 echo -e "certutil -d sql:$HOME/.pki/nssdb -A -t "CT,C,c" -n $SSLNAME -i $SSLNAME.crt"
 printf "+-------------------------------------------------------------------------------------------------------------\n"
 echo
