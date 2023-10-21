@@ -13,9 +13,16 @@ if [[ $EUID -eq 0 ]]; then
     exit 1
 fi
 
+# Check if sudo is installed. (Debian does not always include sudo by default.)
+if ! command -v sudo &> /dev/null; then
+    echo "${LRED}Sudo is not installed. Please install sudo."
+    echo -e ${NC}
+    exit 1
+fi
+
 if ! [ $(id -nG "$USER" 2>/dev/null | egrep "sudo" | wc -l) -gt 0 ]; then
     echo
-    echo -e "${LRED}The current user (${USER}) must be a member of the 'sudo' group, exiting..." 1>&2
+    echo -e "${LRED}The current user (${USER}) must be a member of the 'sudo' group. Run: sudo usermod -aG sudo ${USER}" 1>&2
     echo -e ${NC}
     exit 1
 fi
@@ -42,12 +49,12 @@ export BUILD_DIR=$HOME/build && mkdir -p $BUILD_DIR
 export OFFICIAL_POSTGRESQL="yes"
 if [[ ${OFFICIAL_POSTGRESQL} = "yes" ]]; then
     # Install from official postgresql.org repo
-    export POSTGRESQL="postgresql-15 postgresql-server-dev-15"  
+    export POSTGRESQL="postgresql-15 postgresql-server-dev-15"
   else
     # Install distro default Postgres version. Check available version numbers with: apt-cache show postgresql*
     export POSTGRESQL="postgresql postgresql-server-dev-13"
-        #Try this if all all else fails with your particular distro's version of postgresql
-            #export POSTGRESQL="postgresql-server-all" # 
+        #Try this if all all else fails with your particular distro's version of postgresql:
+            #export POSTGRESQL="postgresql-server-all"
 fi
 
 SERVER_NAME=""                       # Preferred server hostname (no installer prompt if has value)
