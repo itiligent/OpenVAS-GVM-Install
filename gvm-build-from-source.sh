@@ -51,9 +51,9 @@ fi
 
 SERVER_NAME=""                       # Preferred server hostname (no installer prompt if has value)
 LOCAL_DOMAIN=""                      # Local DNS suffix (no installer prompt if has value)
-PROXY_SITE=""                        # Reverse proxy DNS name (no installer prompt if has value)
-GVM_URL="http://localhost:9392"      # GVM native web front end URL
-CERT_COUNTRY="AU"                    # For RSA SSL cert, 2 country character code only, must not be blank
+PROXY_SITE=""                        # Will default to $SERVER_NAME.$LOCAL_DOMAIN if no value provided here
+GVM_URL="http://localhost:9392"      # GVM native web front end URL - don't change this
+CERT_COUNTRY="AU"                    # For RSA SSL cert, 2 character country code only, must not be blank
 CERT_STATE="Victoria"                # For RSA SSL cert, Optional to change, must not be blank
 CERT_LOCATION="Melbourne"            # For RSA SSL cert, Optional to change, must not be blank
 CERT_ORG="Itiligent"                 # For RSA SSL cert, Optional to change, must not be blank
@@ -79,10 +79,6 @@ echo -e "${GREYB}Itiligent GVM Appliance Setup."
 echo -e "               ${CYAN}Powered by Greenbone"
 echo
 echo
-
-# GVM user setup and trigger prompt for sudo
-sudo useradd -r -M -U -G sudo -s /usr/sbin/nologin gvm
-sudo usermod -aG gvm $USER
 
 # Get the default route interface IP
 DEFAULT_IP=$(ip addr show $(ip route | awk '/default/ { print $5 }') | grep "inet" | head -n 1 | awk '/inet/ {print $2}' | cut -d'/' -f1)
@@ -113,6 +109,10 @@ else
     # If no "search" or "domain" lines found
     DOMAIN_SUFFIX="local"
 fi
+
+# GVM user setup and trigger prompt for sudo
+sudo useradd -r -M -U -G sudo -s /usr/sbin/nologin gvm
+sudo usermod -aG gvm $USER
 
 # We need a default hostname value even if we do not want to change the hostname. This approach allows the
 # user to simply hit enter at the prompt without creating a blank entry into the /etc/hosts file.
@@ -185,9 +185,9 @@ echo -e "${CYAN}################################################################
 echo -e " Updating Linux OS"
 echo -e "#############################################################################${NC}"
 echo
-export DEBIAN_FRONTEND=noninteractive
-sudo apt-get update -qq 
-sudo apt-get upgrade -qq -y
+sudo apt-get update -qq >/dev/null
+# Avoid upgrade prompts and keep existing modified config files. Alternative is regular sudo apt-get update -y
+sudo DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade
 
 echo
 echo -e "${CYAN}#############################################################################"
@@ -199,7 +199,7 @@ sudo apt-get install --no-install-recommends --assume-yes \
     sudo DEBIAN_FRONTEND="noninteractive" apt-get install postfix mailutils -y >/dev/null
     sudo service postfix restart >/dev/null
     # Fix annoying "error: externally-managed-environment" message error with Python installs
-    python_version_dir=$(python3 --version 2>&1 | grep -oP '\d+\.\d+' | head -n 1)
+        python_version_dir=$(python3 --version 2>&1 | grep -oP '\d+\.\d+' | head -n 1)
     sudo rm -rf /usr/lib/python${python_version_dir}/EXTERNALLY-MANAGED
     sudo pip3 install --upgrade pip >/dev/null
 
@@ -652,10 +652,9 @@ sudo cp $PROXY_SITE.crt $DIR_SSL_CERT/$PROXY_SITE.crt
 
 cat <<EOF | sudo tee /etc/nginx/sites-available/$PROXY_SITE
 server {
-    #listen 80 default_server;
-    root /var/www/html;
-    index index.html index.htm index.nginx-debian.html;
-    server_name $PROXY_SITE;
+    # HTTPS site
+    listen 443 ssl;
+    server_name _;
     location / {
         proxy_pass $GVM_URL;
         proxy_buffering off;
@@ -665,26 +664,17 @@ server {
         proxy_set_header Connection \$http_connection;
         access_log off;
     }
-    listen 443 ssl;
     ssl_certificate      /etc/nginx/ssl/cert/$PROXY_SITE.crt;
     ssl_certificate_key  /etc/nginx/ssl/private/$PROXY_SITE.key;
     ssl_session_cache shared:SSL:1m;
     ssl_session_timeout  5m;
 }
+
 server {
-    return 301 https://\$host\$request_uri;
+    # Redirect all other traffic to the HTTPS site
     listen 80 default_server;
-    root /var/www/html;
-    index index.html index.htm index.nginx-debian.html;
-    server_name $PROXY_SITE;
     location / {
-        proxy_pass $GVM_URL;
-        proxy_buffering off;
-        proxy_http_version 1.1;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection \$http_connection;
-        access_log off;
+        return 301 https://\$host\$request_uri;
     }
 }
 EOF
@@ -768,7 +758,7 @@ sudo /usr/local/sbin/gvmd --modify-setting 78eceaec-3385-11ea-b237-28d24461215b 
 
 echo
 echo -e "${CYAN}#############################################################################"
-echo -e " Feed updates must complete before gvm will start, please be patient."
+echo -e " Feed updates must complete before gvm can start, this may take a LONG time"
 echo -e "#############################################################################${NC}"
 echo
 # Update the feed and start the services ###############################################
