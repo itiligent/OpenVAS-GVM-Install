@@ -21,13 +21,13 @@ if ! [ $(id -nG "$USER" 2>/dev/null | egrep "sudo" | wc -l) -gt 0 ]; then
 fi
 
 # Select GVM install versions           (check below links for latest release versions)
-export GVM_LIBS_VERSION=22.7.1          # https://github.com/greenbone/gvm-libs
+export GVM_LIBS_VERSION=22.7.3          # https://github.com/greenbone/gvm-libs
 export GVMD_VERSION=22.9.0              # https://github.com/greenbone/gvmd
 export PG_GVM_VERSION=22.6.1            # https://github.com/greenbone/pg-gvm
-export GSA_VERSION=22.7.0               # https://github.com/greenbone/gsa
+export GSA_VERSION=22.7.1               # https://github.com/greenbone/gsa
 export GSAD_VERSION=22.6.0              # https://github.com/greenbone/gsad
-export OPENVAS_SMB_VERSION=22.5.3       # https://github.com/greenbone/openvas-smb
-export OPENVAS_SCANNER_VERSION=22.7.5   # https://github.com/greenbone/openvas-scanner
+export OPENVAS_SMB_VERSION=22.5.4       # https://github.com/greenbone/openvas-smb
+export OPENVAS_SCANNER_VERSION=22.7.6   # https://github.com/greenbone/openvas-scanner
 export OSPD_OPENVAS_VERSION=22.6.0      # https://github.com/greenbone/ospd-openvas
 export NOTUS_VERSION=22.6.0             # https://github.com/greenbone/notus-scanner
 
@@ -38,15 +38,16 @@ export SOURCE_DIR=$HOME/source && mkdir -p $SOURCE_DIR
 export INSTALL_DIR=$HOME/install && mkdir -p $INSTALL_DIR
 export BUILD_DIR=$HOME/build && mkdir -p $BUILD_DIR
 
-# Select PostgreSQL repo
+# Select PostgreSQL repo. Yes = use official repo, else use the distro default Postgres packages.
 export OFFICIAL_POSTGRESQL="yes"
 if [[ ${OFFICIAL_POSTGRESQL} = "yes" ]]; then
-    # Use official postgresql.org repo
+    # Install from official postgresql.org repo
     export POSTGRESQL="postgresql-15 postgresql-server-dev-15"  
   else
-    # Update to your Linux distro's correct version. Check available packages with: apt-cache show postgresql*
+    # Install distro default Postgres version. Check available version numbers with: apt-cache show postgresql*
     export POSTGRESQL="postgresql postgresql-server-dev-13"
-    #export POSTGRESQL="postgresql-server-all" # Try this if all all else fails with your particular distro's version of postgresql
+        #Try this if all all else fails with your particular distro's version of postgresql
+            #export POSTGRESQL="postgresql-server-all" # 
 fi
 
 SERVER_NAME=""                       # Preferred server hostname (no installer prompt if has value)
@@ -59,10 +60,10 @@ CERT_LOCATION="Melbourne"            # For RSA SSL cert, Optional to change, mus
 CERT_ORG="Itiligent"                 # For RSA SSL cert, Optional to change, must not be blank
 CERT_OU="I.T."                       # For RSA SSL cert, Optional to change, must not be blank
 CERT_DAYS="3650"                     # For RSA SSL cert,Number of days until self signed certificate expiry
-DIR_SSL_CERT="/etc/nginx/ssl/cert"   # Nginx SSL certificate location 
-DIR_SSL_KEY="/etc/nginx/ssl/private" # Nginx SSL private key location
-ADMIN_USER="itiligent"               # Customise default admin user name
-ADMIN_PASS="password"                # First admin user password
+DIR_SSL_CERT="/etc/nginx/ssl/cert"   # Nginx SSL certificate location - don't change this
+DIR_SSL_KEY="/etc/nginx/ssl/private" # Nginx SSL private key location - don't change this
+ADMIN_USER="itiligent"               # Set the default admin account username
+ADMIN_PASS="password"                # Set the default admin account password
 
 clear
 

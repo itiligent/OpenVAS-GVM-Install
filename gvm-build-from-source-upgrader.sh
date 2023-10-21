@@ -1,6 +1,6 @@
 #!/bin/bash
 #######################################################################################################################
-# Greenbone Vulnerability Manager upgrade script
+# Greenbone Vulnerability Manager UPGRADER script
 # For Ubuntu / Debian
 # David Harrop
 # August 2023
@@ -21,13 +21,13 @@ if ! [ $(id -nG "$USER" 2>/dev/null | egrep "sudo" | wc -l) -gt 0 ]; then
 fi
 
 # Select GVM install versions           (check below links for latest release versions)
-export GVM_LIBS_VERSION=22.7.1          # https://github.com/greenbone/gvm-libs
+export GVM_LIBS_VERSION=22.7.3          # https://github.com/greenbone/gvm-libs
 export GVMD_VERSION=22.9.0              # https://github.com/greenbone/gvmd
 export PG_GVM_VERSION=22.6.1            # https://github.com/greenbone/pg-gvm
-export GSA_VERSION=22.7.0               # https://github.com/greenbone/gsa
+export GSA_VERSION=22.7.1               # https://github.com/greenbone/gsa
 export GSAD_VERSION=22.6.0              # https://github.com/greenbone/gsad
-export OPENVAS_SMB_VERSION=22.5.3       # https://github.com/greenbone/openvas-smb
-export OPENVAS_SCANNER_VERSION=22.7.5   # https://github.com/greenbone/openvas-scanner
+export OPENVAS_SMB_VERSION=22.5.4       # https://github.com/greenbone/openvas-smb
+export OPENVAS_SCANNER_VERSION=22.7.6   # https://github.com/greenbone/openvas-scanner
 export OSPD_OPENVAS_VERSION=22.6.0      # https://github.com/greenbone/ospd-openvas
 export NOTUS_VERSION=22.6.0             # https://github.com/greenbone/notus-scanner
 
@@ -59,9 +59,9 @@ echo -e "${CYAN}################################################################
 echo -e " Updating Linux OS"
 echo -e "#############################################################################${NC}"
 echo
-export DEBIAN_FRONTEND=noninteractive
-sudo apt-get update -qq 
-sudo apt-get upgrade -qq -y
+sudo apt-get update -qq >/dev/null
+# Avoid upgrade prompts and keep existing modified config files. Alternative is regular sudo apt-get update -y
+sudo DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade
 sudo pip3 install --upgrade pip >/dev/null
 echo
 
