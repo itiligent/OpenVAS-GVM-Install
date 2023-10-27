@@ -66,7 +66,7 @@ CERT_STATE="Victoria"                # For RSA SSL cert, Optional to change, mus
 CERT_LOCATION="Melbourne"            # For RSA SSL cert, Optional to change, must not be blank
 CERT_ORG="Itiligent"                 # For RSA SSL cert, Optional to change, must not be blank
 CERT_OU="I.T."                       # For RSA SSL cert, Optional to change, must not be blank
-CERT_DAYS="3650"                     # For RSA SSL cert,Number of days until self signed certificate expiry
+CERT_DAYS="3650"                     # For RSA SSL cert, Number of days until self signed certificate expiry
 DIR_SSL_CERT="/etc/nginx/ssl/cert"   # Nginx SSL certificate location - don't change this
 DIR_SSL_KEY="/etc/nginx/ssl/private" # Nginx SSL private key location - don't change this
 ADMIN_USER="itiligent"               # Set the default admin account username
@@ -91,26 +91,28 @@ echo
 # Get the default route interface IP
 DEFAULT_IP=$(ip addr show $(ip route | awk '/default/ { print $5 }') | grep "inet" | head -n 1 | awk '/inet/ {print $2}' | cut -d'/' -f1)
 
-# Get an initial dns search suffix for use as a starting default for a local dns domain prompt value
+# A default dns suffix is needed for initial prompts & default starting values.
 get_domain_suffix() {
     echo "$1" | awk '{print $2}'
 }
+# Search for "search" and "domain" entries in /etc/resolv.conf
 search_line=$(grep -E '^search[[:space:]]+' /etc/resolv.conf)
 domain_line=$(grep -E '^domain[[:space:]]+' /etc/resolv.conf)
-if [ -n "$search_line" ] && [ -n "$domain_line" ]; then
-    # If both "search" and "domain" lines exist, extract the domain suffix from both
+# Check if both "search" and "domain" lines exist
+if [[ -n "$search_line" ]] && [[ -n "$domain_line" ]]; then
+    # Both "search" and "domain" lines exist, extract the domain suffix from both
     search_suffix=$(get_domain_suffix "$search_line")
     domain_suffix=$(get_domain_suffix "$domain_line")
     # Print the domain suffix that appears first
-    if [ ${#search_suffix} -lt ${#domain_suffix} ]; then
+    if [[ ${#search_suffix} -lt ${#domain_suffix} ]]; then
         DOMAIN_SUFFIX=$search_suffix
     else
         DOMAIN_SUFFIX=$domain_suffix
     fi
-elif [ -n "$search_line" ]; then
+elif [[ -n "$search_line" ]]; then
     # If only "search" line exists
     DOMAIN_SUFFIX=$(get_domain_suffix "$search_line")
-elif [ -n "$domain_line" ]; then
+elif [[ -n "$domain_line" ]]; then
     # If only "domain" line exists
     DOMAIN_SUFFIX=$(get_domain_suffix "$domain_line")
 else
@@ -118,63 +120,79 @@ else
     DOMAIN_SUFFIX="local"
 fi
 
-# GVM user setup and trigger prompt for sudo
+# GVM user setup and trigger to prompt for sudo
 sudo useradd -r -M -U -G sudo -s /usr/sbin/nologin gvm
 sudo usermod -aG gvm $USER
-
-# We need a default hostname value even if we do not want to change the hostname. This approach allows the
-# user to simply hit enter at the prompt without creating a blank entry into the /etc/hosts file.
 echo
+
+# We need to ensure consistent default hostname and domain suffix values for TLS implementation. The below approach
+# allows the user to either hit enter at the prompt to keep current values, or to manually update values. Silent install
+# pre-set values (if provided) will bypass all prompts.
+
+# Ensure SERVER_NAME is consistent with localhost entries
 if [[ -z ${SERVER_NAME} ]]; then
     echo -e "${LYELLOW}Update Linux system HOSTNAME [Enter to keep: ${HOSTNAME}]${CYAN}"
-    read -p "                        Enter new HOSTNAME : " SERVER_NAME
+    read -p "              Enter new HOSTNAME : " SERVER_NAME
+    # If hit enter making no SERVER_NAME change, assume the existing hostname as current
     if [[ "${SERVER_NAME}" = "" ]]; then
         SERVER_NAME=$HOSTNAME
     fi
     echo
-    sudo hostnamectl set-hostname $SERVER_NAME >/dev/null
-    sudo sed -i '/127.0.1.1/d' /etc/hosts >/dev/null
-    echo '127.0.1.1       '${SERVER_NAME}'' | sudo tee -a /etc/hosts >/dev/null
-    sudo systemctl restart systemd-hostnamed >/dev/null
+    # A SERVER_NAME was derived via the prompt
+    # Apply the SERVER_NAME value & remove and update any old 127.0.1.1 localhost references
+    $(sudo hostnamectl set-hostname $SERVER_NAME &> /dev/null &) &> /dev/null
+    sudo sed -i '/127.0.1.1/d' /etc/hosts &> /dev/null
+    echo '127.0.1.1       '${SERVER_NAME}'' | sudo tee -a /etc/hosts &> /dev/null
+    $(sudo systemctl restart systemd-hostnamed &> /dev/null &) &> /dev/null
 else
     echo
-    sudo hostnamectl set-hostname $SERVER_NAME >/dev/null
-    sudo sed -i '/127.0.1.1/d' /etc/hosts >/dev/null
-    echo '127.0.1.1       '${SERVER_NAME}'' | sudo tee -a /etc/hosts >/dev/null
-    sudo systemctl restart systemd-hostnamed >/dev/null
+    # A SERVER_NAME value was derived from a pre-set silent install option.
+    # Apply the SERVER_NAME value & remove and update any old 127.0.1.1 localhost references
+    $(sudo hostnamectl set-hostname $SERVER_NAME &> /dev/null & ) &> /dev/null
+    sudo sed -i '/127.0.1.1/d' /etc/hosts &> /dev/null
+    echo '127.0.1.1       '${SERVER_NAME}'' | sudo tee -a /etc/hosts &> /dev/null
+    $(sudo systemctl restart systemd-hostnamed &> /dev/null &) &> /dev/null
 fi
 
+# Ensure LOCAL_DOMAIN suffix and localhost entries are consistent
 if [[ -z ${LOCAL_DOMAIN} ]]; then
     echo -e "${LYELLOW}Update Linux LOCAL DNS DOMAIN [Enter to keep: ${DOMAIN_SUFFIX}]${CYAN}"
-    read -p "                        Enter FULL LOCAL DOMAIN NAME: " LOCAL_DOMAIN
+    read -p "              Enter FULL LOCAL DOMAIN NAME: " LOCAL_DOMAIN
+    # If hit enter making no LOCAL_DOMAIN name change, assume the existing domain suffix as current
     if [[ "${LOCAL_DOMAIN}" = "" ]]; then
         LOCAL_DOMAIN=$DOMAIN_SUFFIX
     fi
     echo
+    # A LOCAL_DOMAIN value was derived via the prompt
+    # Remove any old localhost & resolv file values and update these with the new LOCAL_DOMAIN value
     sudo sed -i "/${DEFAULT_IP}/d" /etc/hosts
     sudo sed -i '/domain/d' /etc/resolv.conf
     sudo sed -i '/search/d' /etc/resolv.conf
-    # Update the /etc/hosts file with the new domain values
-    echo ''${DEFAULT_IP}'	'${SERVER_NAME}.${LOCAL_DOMAIN} ${SERVER_NAME}'' | sudo tee -a /etc/hosts >/dev/null
-    #Update resolv.conf with new domain and search suffix values
-    echo 'domain	'${LOCAL_DOMAIN}'' | sudo tee -a /etc/resolv.conf >/dev/null
-    echo 'search	'${LOCAL_DOMAIN}'' | sudo tee -a /etc/resolv.conf >/dev/null
-    sudo systemctl restart systemd-hostnamed >/dev/null
+    # Refresh the /etc/hosts file with the server name and new local domain value
+    echo ''${DEFAULT_IP}'	'${SERVER_NAME}.${LOCAL_DOMAIN} ${SERVER_NAME}'' | sudo tee -a /etc/hosts &> /dev/null
+    # Refresh /etc/resolv.conf with new domain and search suffix values
+    echo 'domain	'${LOCAL_DOMAIN}'' | sudo tee -a /etc/resolv.conf &> /dev/null
+    echo 'search	'${LOCAL_DOMAIN}'' | sudo tee -a /etc/resolv.conf &> /dev/null
+    $(sudo systemctl restart systemd-hostnamed &> /dev/null &) &> /dev/null
 else
     echo
+    # A LOCAL_DOMIN value was derived from a pre-set silent install option.
+    # Remove any old localhost & resolv file values and update these with the new LOCAL_DOMAIN value
     sudo sed -i "/${DEFAULT_IP}/d" /etc/hosts
     sudo sed -i '/domain/d' /etc/resolv.conf
     sudo sed -i '/search/d' /etc/resolv.conf
-    # Update the /etc/hosts file with the new domain values
-    echo ''${DEFAULT_IP}'	'${SERVER_NAME}.${LOCAL_DOMAIN} ${SERVER_NAME}'' | sudo tee -a /etc/hosts >/dev/null
-    #Update resolv.conf with new domain and search suffix values
-    echo 'domain	'${LOCAL_DOMAIN}'' | sudo tee -a /etc/resolv.conf >/dev/null
-    echo 'search	'${LOCAL_DOMAIN}'' | sudo tee -a /etc/resolv.conf >/dev/null
-    sudo systemctl restart systemd-hostnamed >/dev/null
+    # Refresh the /etc/hosts file with the server name and new local domain value
+    echo ''${DEFAULT_IP}'	'${SERVER_NAME}.${LOCAL_DOMAIN} ${SERVER_NAME}'' | sudo tee -a /etc/hosts &> /dev/null
+    # Refresh /etc/resolv.conf with new domain and search suffix values
+    echo 'domain	'${LOCAL_DOMAIN}'' | sudo tee -a /etc/resolv.conf &> /dev/null
+    echo 'search	'${LOCAL_DOMAIN}'' | sudo tee -a /etc/resolv.conf &> /dev/null
+    $(sudo systemctl restart systemd-hostnamed &> /dev/null &) &> /dev/null
 fi
 
-# After updating the hostname and domain names, we use this as the default value for local FQDN/proxy url
+# Now that $SERVER_NAME and $LOCAL_DOMAIN values are updated and refreshed:
+# Values are merged to build a local FQDN value (used for the default reverse proxy site name.)
 DEFAULT_FQDN=$SERVER_NAME.$LOCAL_DOMAIN
+
 # If the proxy site dns name is not manually overridden, keep the default FQDN as the proxy site name
 if [ -z "${PROXY_SITE}" ]; then
     PROXY_SITE="${DEFAULT_FQDN}"
@@ -193,7 +211,7 @@ echo -e "${CYAN}################################################################
 echo -e " Updating Linux OS"
 echo -e "#############################################################################${NC}"
 echo
-sudo apt-get update -qq >/dev/null
+sudo apt-get update -qq &> /dev/null
 # Avoid upgrade prompts and keep existing modified config files. Alternative is regular sudo apt-get update -y
 sudo DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade
 
@@ -203,13 +221,13 @@ echo -e " Installing common dependencies"
 echo -e "#############################################################################${NC}"
 echo
 sudo apt-get install --no-install-recommends --assume-yes \
-    build-essential curl cmake pkg-config python3 python3-pip gnupg wget sudo gnupg2 ufw htop >/dev/null
-    sudo DEBIAN_FRONTEND="noninteractive" apt-get install postfix mailutils -y >/dev/null
-    sudo service postfix restart >/dev/null
+    build-essential curl cmake pkg-config python3 python3-pip gnupg wget sudo gnupg2 ufw htop &> /dev/null
+    sudo DEBIAN_FRONTEND="noninteractive" apt-get install postfix mailutils -y &> /dev/null
+    sudo service postfix restart &> /dev/null
     # Fix annoying "error: externally-managed-environment" message error with Python installs
         python_version_dir=$(python3 --version 2>&1 | grep -oP '\d+\.\d+' | head -n 1)
     sudo rm -rf /usr/lib/python${python_version_dir}/EXTERNALLY-MANAGED
-    sudo pip3 install --upgrade pip >/dev/null
+    sudo pip3 install --upgrade pip &> /dev/null
 
 # Import the Greenbone Community Signing key
 curl -f -L https://www.greenbone.net/GBCommunitySigningKey.asc -o /tmp/GBCommunitySigningKey.asc
@@ -223,7 +241,7 @@ echo -e "#######################################################################
 echo
 sudo apt-get install -y \
     libglib2.0-dev libgpgme-dev libgnutls28-dev uuid-dev libssh-gcrypt-dev libhiredis-dev libxml2-dev libpcap-dev libnet1-dev \
-    libpaho-mqtt-dev libldap2-dev libradcli-dev doxygen xmltoman graphviz libldap2-dev libradcli-dev >/dev/null
+    libpaho-mqtt-dev libldap2-dev libradcli-dev doxygen xmltoman graphviz libldap2-dev libradcli-dev &> /dev/null
 
 # Download the gvm-libs sources
 export GVM_LIBS_VERSION=$GVM_LIBS_VERSION
@@ -256,19 +274,19 @@ echo -e "#######################################################################
 
 echo
 if [[ ${OFFICIAL_POSTGRESQL} = "yes" ]]; then
-    sudo apt-get -y install lsb-release >/dev/null
+    sudo apt-get -y install lsb-release &> /dev/null
     sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
     sudo wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
     sudo apt-key export ACCC4CF8 | sudo gpg --dearmour -o /etc/apt/trusted.gpg.d/greenbone.gpg
 fi
 sudo apt -y update
 sudo apt-get install -y \
-    libglib2.0-dev libgnutls28-dev libpq-dev libical-dev ${POSTGRESQL} xsltproc rsync libbsd-dev libgpgme-dev >/dev/null
+    libglib2.0-dev libgnutls28-dev libpq-dev libical-dev ${POSTGRESQL} xsltproc rsync libbsd-dev libgpgme-dev &> /dev/null
 
 # Install optional dependencies for gvmd
 sudo apt-get install -y --no-install-recommends \
     texlive-latex-extra texlive-fonts-recommended xmlstarlet zip rpm fakeroot dpkg nsis gnupg gpgsm wget sshpass openssh-client \
-    socat snmp python3 smbclient python3-lxml gnutls-bin xml-twig-tools >/dev/null
+    socat snmp python3 smbclient python3-lxml gnutls-bin xml-twig-tools &> /dev/null
 
 # Download the gvmd sources
 export GVMD_VERSION=$GVMD_VERSION
@@ -329,7 +347,7 @@ echo -e " Building & installing pg-gvm"
 echo -e "#############################################################################${NC}"
 echo
 sudo apt-get install -y \
-    libglib2.0-dev libical-dev ${POSTGRESQL} >/dev/null
+    libglib2.0-dev libical-dev ${POSTGRESQL} &> /dev/null
 
 # Download the pg-gvm sources
 export PG_GVM_VERSION=$PG_GVM_VERSION
@@ -371,7 +389,7 @@ echo -e " Building & installing gsad"
 echo -e "#############################################################################${NC}"
 echo
 sudo apt-get install -y \
-    libmicrohttpd-dev libxml2-dev libglib2.0-dev libgnutls28-dev >/dev/null
+    libmicrohttpd-dev libxml2-dev libglib2.0-dev libgnutls28-dev &> /dev/null
 
 # Download gsad sources
 export GSAD_VERSION=$GSAD_VERSION
@@ -428,7 +446,7 @@ echo -e " Building & installing openvas-smb"
 echo -e "#############################################################################${NC}"
 echo
 sudo apt-get install -y \
-    gcc-mingw-w64 libgnutls28-dev libglib2.0-dev libpopt-dev libunistring-dev heimdal-dev perl-base >/dev/null
+    gcc-mingw-w64 libgnutls28-dev libglib2.0-dev libpopt-dev libunistring-dev heimdal-dev perl-base &> /dev/null
 
 # Download the openvas-smb sources
 export OPENVAS_SMB_VERSION=$OPENVAS_SMB_VERSION
@@ -456,7 +474,7 @@ echo -e "#######################################################################
 echo
 sudo apt-get install -y \
     bison libglib2.0-dev libgnutls28-dev libgcrypt20-dev libpcap-dev libgpgme-dev libksba-dev rsync nmap libjson-glib-dev \
-    libbsd-dev python3-impacket libsnmp-dev pandoc pnscan >/dev/null
+    libbsd-dev python3-impacket libsnmp-dev pandoc pnscan &> /dev/null
 
 # Download openvas-scanner sources
 export OPENVAS_SCANNER_VERSION=$OPENVAS_SCANNER_VERSION
@@ -489,7 +507,7 @@ echo -e "#######################################################################
 echo
 sudo apt-get install -y \
     python3 python3-pip python3-setuptools python3-packaging python3-wrapt python3-cffi python3-psutil python3-lxml \
-    python3-defusedxml python3-paramiko python3-redis python3-gnupg python3-paho-mqtt >/dev/null
+    python3-defusedxml python3-paramiko python3-redis python3-gnupg python3-paho-mqtt &> /dev/null
 
 # Download ospd-openvas sources
 export OSPD_OPENVAS_VERSION=$OSPD_OPENVAS_VERSION
@@ -535,11 +553,11 @@ echo -e " Building & installing notus-scanner"
 echo -e "#############################################################################${NC}"
 echo
 sudo apt-get install -y \
-    python3 python3-pip python3-setuptools python3-paho-mqtt python3-psutil python3-gnupg >/dev/null
+    python3 python3-pip python3-setuptools python3-paho-mqtt python3-psutil python3-gnupg &> /dev/null
     # Raspberry Pi specific notus dependencies
     PLATFORM=$(cat /proc/cpuinfo | grep Model)
     if [[ $PLATFORM = *"Raspberry Pi"* ]]; then
-        sudo apt-get install python3-dev -y >/dev/null
+        sudo apt-get install python3-dev -y &> /dev/null
     fi
 
 # Download notus-scanner sources
@@ -585,13 +603,13 @@ echo -e "#######################################################################
 echo
 # Greenbone-feed-sync ##################################################################
 sudo apt-get install -y \
-    python3 python3-pip >/dev/null
+    python3 python3-pip &> /dev/null
 
 sudo python3 -m pip install ${PIP_OPTIONS} greenbone-feed-sync
 
 # Gvm-tools ############################################################################
 sudo apt-get install -y \
-    python3 python3-pip python3-venv python3-setuptools python3-packaging python3-lxml python3-defusedxml python3-paramiko >/dev/null
+    python3 python3-pip python3-venv python3-setuptools python3-packaging python3-lxml python3-defusedxml python3-paramiko &> /dev/null
 
 sudo python3 -m pip install ${PIP_OPTIONS} gvm-tools
 
@@ -615,7 +633,7 @@ echo -e "${CYAN}################################################################
 echo -e " Setting up Nginx reverse proxy"
 echo -e "#############################################################################${NC}"
 echo
-sudo apt-get install -y nginx >/dev/null
+sudo apt-get install -y nginx &> /dev/null
 
 # Nginx SSL cert config
 cd ~
